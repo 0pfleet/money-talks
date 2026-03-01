@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+.next/
+.turbo/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.pickle
+session.pickle
+
+# Data lake (user's financial data — never commit)
+*.parquet
+*.csv
+lake/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/

@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "money-talks"
+version = "0.1.0"
+description = "Agentic financial data analysis powered by Monarch Money"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Oscar", email = "oscar@0pfleet.github.io" }]
+keywords = ["monarch-money", "finance", "data-analysis", "agent", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+    "monarchmoneycommunity>=0.3.0",
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "duckdb>=1.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pandas-stubs",
+]
+chat = [
+    # Dependencies for the agentic chat app (installed separately via npm)
+]
+
+[project.scripts]
+money-talks = "money_talks.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/money_talks"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
