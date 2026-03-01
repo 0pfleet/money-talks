@@ -2,12 +2,15 @@
   "name": "money-talks-chat",
   "version": "0.1.0",
   "private": true,
-  "description": "Agentic financial chat interface for money-talks",
+  "description": "Agentic financial adviser chat interface",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "kernel:up": "cd notebook && docker compose up -d",
+    "kernel:down": "cd notebook && docker compose down",
+    "kernel:logs": "cd notebook && docker compose logs -f"
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -15,6 +18,7 @@
     "react-dom": "^19.0.0",
     "ai": "^4.0.0",
     "@ai-sdk/anthropic": "^1.0.0",
+    "@jupyterlab/services": "^7.0.0",
     "sqlite3": "^5.1.7",
     "zod": "^3.23.0",
     "lucide-react": "^0.400.0"
