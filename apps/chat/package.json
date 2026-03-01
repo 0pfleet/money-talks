@@ -1,0 +1,28 @@
+{
+  "name": "money-talks-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agentic financial chat interface for money-talks",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ai": "^4.0.0",
+    "@ai-sdk/anthropic": "^1.0.0",
+    "sqlite3": "^5.1.7",
+    "zod": "^3.23.0",
+    "lucide-react": "^0.400.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.6.0",
+    "tailwindcss": "^4.0.0"
+  }
+}
