@@ -23,6 +23,7 @@ env/
 node_modules/
 .next/
 .turbo/
+next-env.d.ts
 
 # Environment & secrets
 .env

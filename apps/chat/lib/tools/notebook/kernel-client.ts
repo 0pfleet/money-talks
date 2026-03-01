@@ -1,130 +1,197 @@
 /**
- * Jupyter Kernel Gateway client using @jupyterlab/services.
+ * Jupyter Kernel Gateway client — raw HTTP + WebSocket implementation.
  *
- * Manages a persistent kernel connection for the chat session.
- * Each session gets its own kernel with pre-loaded financial data.
+ * Talks directly to the Kernel Gateway REST API and WebSocket channel.
+ * No @jupyterlab/services dependency — simpler, works reliably in Node.js.
  *
  * Connection flow:
- *   1. Connect to Kernel Gateway via ServerConnection
- *   2. Start (or reuse) a Python kernel
- *   3. Send execute_request over WebSocket
- *   4. Collect IOPub messages until kernel goes idle
- *   5. Return structured ExecutionResult
+ *   1. POST /api/kernels → start a kernel
+ *   2. WebSocket /api/kernels/{id}/channels → send execute_request
+ *   3. Collect IOPub messages until kernel goes idle
+ *   4. Return structured ExecutionResult
  */
 
-import type { ExecutionResult } from "./index";
-import { processIOPubMessages } from "./index";
+import { WebSocket } from "ws";
+import { processIOPubMessages, type ExecutionResult } from "./index";
 
-/** Configuration for connecting to the Jupyter Kernel Gateway. */
 export interface KernelConfig {
-  /** Base URL of the Kernel Gateway (e.g., http://localhost:8888). */
   baseUrl: string;
-  /** WebSocket URL (e.g., ws://localhost:8888). */
   wsUrl: string;
-  /** Auth token for the Kernel Gateway. */
   token: string;
 }
 
-/** Default config for local development. */
-export const DEFAULT_KERNEL_CONFIG: KernelConfig = {
+const DEFAULT_CONFIG: KernelConfig = {
   baseUrl: process.env.JUPYTER_BASE_URL || "http://localhost:8888",
   wsUrl: process.env.JUPYTER_WS_URL || "ws://localhost:8888",
   token: process.env.JUPYTER_TOKEN || "money-talks-dev",
 };
 
+// Cache the kernel ID so we reuse the same kernel across requests
+let cachedKernelId: string | null = null;
+
 /**
  * Execute code in a Jupyter kernel and return structured results.
- *
- * This is the main entry point for the execute tool. It:
- *   1. Connects to (or reuses) a kernel
- *   2. Sends code for execution
- *   3. Collects all IOPub messages until the kernel goes idle
- *   4. Returns parsed text, figures, and errors
- *
- * Uses @jupyterlab/services for WebSocket kernel communication.
- * The library handles the Jupyter wire protocol (message IDs,
- * channel multiplexing, HMAC auth) transparently.
- *
- * Example usage:
- *   const result = await executeInKernel("query('SELECT * FROM transactions LIMIT 5')");
- *   // result.text contains the DataFrame output
- *   // result.figures contains any matplotlib/plotly charts as base64 PNG
- *   // result.error contains traceback if execution failed
  */
 export async function executeInKernel(
   code: string,
-  config: KernelConfig = DEFAULT_KERNEL_CONFIG,
+  config: KernelConfig = DEFAULT_CONFIG,
   timeoutMs: number = 30_000,
 ): Promise<ExecutionResult> {
-  // Dynamic import — @jupyterlab/services is a heavy package,
-  // only load when actually executing code
-  const { KernelManager, ServerConnection } = await import(
-    "@jupyterlab/services"
-  );
-
-  const serverSettings = ServerConnection.makeSettings({
-    baseUrl: config.baseUrl,
-    wsUrl: config.wsUrl,
-    token: config.token,
-  });
-
-  const kernelManager = new KernelManager({ serverSettings });
-  const kernel = await kernelManager.startNew({ name: "python3" });
-
-  try {
-    const result = await executeWithTimeout(kernel, code, timeoutMs);
-    return result;
-  } finally {
-    // Don't shut down the kernel — keep it warm for the next execution.
-    // The kernel persists for the lifetime of the Docker container.
-    // Variables, imports, and state carry over between executions,
-    // which is exactly what we want for iterative analysis.
-  }
+  const kernelId = await getOrCreateKernel(config);
+  return executeOnKernel(kernelId, code, config, timeoutMs);
 }
 
-async function executeWithTimeout(
-  kernel: any,
+async function getOrCreateKernel(config: KernelConfig): Promise<string> {
+  if (cachedKernelId) {
+    // Verify it's still alive
+    try {
+      const res = await fetch(
+        `${config.baseUrl}/api/kernels/${cachedKernelId}`,
+        { headers: { Authorization: `token ${config.token}` } },
+      );
+      if (res.ok) return cachedKernelId;
+    } catch {
+      // Kernel died, create a new one
+    }
+  }
+
+  const res = await fetch(`${config.baseUrl}/api/kernels`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `token ${config.token}`,
+    },
+    body: JSON.stringify({ name: "python3" }),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to create kernel: ${res.status} ${await res.text()}`,
+    );
+  }
+
+  const kernel = (await res.json()) as { id: string };
+  cachedKernelId = kernel.id;
+  return kernel.id;
+}
+
+function executeOnKernel(
+  kernelId: string,
   code: string,
+  config: KernelConfig,
   timeoutMs: number,
 ): Promise<ExecutionResult> {
   return new Promise((resolve, reject) => {
+    const wsUrl = `${config.wsUrl}/api/kernels/${kernelId}/channels?token=${config.token}`;
+    const ws = new WebSocket(wsUrl);
+
+    const msgId = crypto.randomUUID();
     const messages: any[] = [];
+    let settled = false;
+
     const timer = setTimeout(() => {
-      kernel.interrupt();
-      resolve({
-        text: "[execution timed out]",
-        figures: [],
-        error: {
-          name: "TimeoutError",
-          value: `Execution exceeded ${timeoutMs / 1000}s limit`,
-          traceback: "",
-        },
-        truncated: false,
-      });
+      if (!settled) {
+        settled = true;
+        ws.close();
+        resolve({
+          text: "[execution timed out]",
+          figures: [],
+          error: {
+            name: "TimeoutError",
+            value: `Execution exceeded ${timeoutMs / 1000}s limit`,
+            traceback: "",
+          },
+          truncated: false,
+        });
+      }
     }, timeoutMs);
 
-    const future = kernel.requestExecute({ code });
-
-    future.onIOPub = (msg: any) => {
-      const msgType = msg.header.msg_type;
-      if (
-        msgType === "stream" ||
-        msgType === "display_data" ||
-        msgType === "execute_result" ||
-        msgType === "error"
-      ) {
-        messages.push({ msg_type: msgType, content: msg.content });
+    ws.on("error", (err) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(`WebSocket error: ${err.message}`));
       }
-    };
+    });
 
-    future.done
-      .then(() => {
+    ws.on("open", () => {
+      // Send execute_request on the shell channel
+      const executeRequest = {
+        channel: "shell",
+        header: {
+          msg_id: msgId,
+          username: "money-talks",
+          session: crypto.randomUUID(),
+          msg_type: "execute_request",
+          version: "5.4",
+          date: new Date().toISOString(),
+        },
+        parent_header: {},
+        metadata: {},
+        content: {
+          code,
+          silent: false,
+          store_history: true,
+          user_expressions: {},
+          allow_stdin: false,
+          stop_on_error: true,
+        },
+      };
+      ws.send(JSON.stringify(executeRequest));
+    });
+
+    ws.on("message", (data) => {
+      const msg = JSON.parse(data.toString());
+
+      // Only process messages that are responses to our request
+      if (msg.parent_header?.msg_id !== msgId) return;
+
+      const msgType = msg.header?.msg_type;
+
+      if (msg.channel === "iopub") {
+        if (
+          msgType === "stream" ||
+          msgType === "display_data" ||
+          msgType === "execute_result" ||
+          msgType === "error"
+        ) {
+          messages.push({ msg_type: msgType, content: msg.content });
+        }
+
+        // Kernel is done when it goes idle after our request
+        if (
+          msgType === "status" &&
+          msg.content?.execution_state === "idle"
+        ) {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            ws.close();
+            resolve(processIOPubMessages(messages));
+          }
+        }
+      }
+
+      // Also resolve on shell reply (backup)
+      if (msg.channel === "shell" && msgType === "execute_reply") {
+        // Wait a tick for any final IOPub messages
+        setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            ws.close();
+            resolve(processIOPubMessages(messages));
+          }
+        }, 100);
+      }
+    });
+
+    ws.on("close", () => {
+      if (!settled) {
+        settled = true;
         clearTimeout(timer);
         resolve(processIOPubMessages(messages));
-      })
-      .catch((err: Error) => {
-        clearTimeout(timer);
-        reject(err);
-      });
+      }
+    });
   });
 }
