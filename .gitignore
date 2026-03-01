@@ -34,7 +34,8 @@ session.pickle
 # Data lake (user's financial data — never commit)
 *.parquet
 *.csv
-lake/
+# The user's local data lake directory (not the source code module)
+.money-talks/
 
 # OS
 .DS_Store
