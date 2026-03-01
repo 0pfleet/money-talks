@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, type FormEvent } from "react";
+import { useRef, useEffect, type FormEvent, type ChangeEvent } from "react";
 import type { Message } from "@/app/page";
 
 interface ChatWindowProps {
@@ -11,6 +11,12 @@ interface ChatWindowProps {
   sidebarOpen: boolean;
   artifactsOpen: boolean;
   artifactCount: number;
+  /** Controlled input from useChat */
+  input: string;
+  onInputChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  isLoading: boolean;
+  error: Error | undefined;
 }
 
 export function ChatWindow({
@@ -21,8 +27,12 @@ export function ChatWindow({
   sidebarOpen,
   artifactsOpen,
   artifactCount,
+  input,
+  onInputChange,
+  onSubmit,
+  isLoading,
+  error,
 }: ChatWindowProps) {
-  const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -40,18 +50,11 @@ export function ChatWindow({
     }
   }, [input]);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    onSendMessage(trimmed);
-    setInput("");
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      const form = document.getElementById("chat-form") as HTMLFormElement;
+      form?.requestSubmit();
     }
   };
 
@@ -60,22 +63,13 @@ export function ChatWindow({
       {/* Header Bar */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-monarch-dark-border">
         <div className="flex items-center gap-3">
-          {/* Sidebar toggle (visible when collapsed) */}
           {!sidebarOpen && (
             <button
               onClick={onToggleSidebar}
               className="p-1.5 rounded-md text-warm-500 hover:text-warm-200 hover:bg-monarch-dark-elevated transition-colors"
               title="Open sidebar"
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 18 18"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M3 5H15M3 9H15M3 13H15" />
               </svg>
             </button>
@@ -83,31 +77,25 @@ export function ChatWindow({
           <h1 className="font-heading text-lg font-semibold text-warm-100">
             money-talks
           </h1>
+          {isLoading && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-monarch-orange animate-pulse" />
+              <span className="text-xs text-warm-500">Thinking...</span>
+            </div>
+          )}
         </div>
 
-        {/* Artifacts toggle */}
         <button
           onClick={onToggleArtifacts}
           className={`
             flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-pill)]
             text-sm transition-colors
-            ${
-              artifactsOpen
-                ? "bg-monarch-dark-elevated text-warm-200"
-                : "text-warm-500 hover:text-warm-200 hover:bg-monarch-dark-elevated"
-            }
+            ${artifactsOpen
+              ? "bg-monarch-dark-elevated text-warm-200"
+              : "text-warm-500 hover:text-warm-200 hover:bg-monarch-dark-elevated"}
           `}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="2" width="5" height="5" rx="1" />
             <rect x="9" y="2" width="5" height="5" rx="1" />
             <rect x="2" y="9" width="5" height="5" rx="1" />
@@ -131,36 +119,51 @@ export function ChatWindow({
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
+            {isLoading && messages[messages.length - 1]?.role === "user" && (
+              <TypingIndicator />
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
+      {/* Error display */}
+      {error && (
+        <div className="px-4 pb-2">
+          <div className="max-w-3xl mx-auto bg-budget-over/10 border border-budget-over/20 rounded-lg px-4 py-2 text-sm text-budget-over">
+            {error.message || "Something went wrong. Check your API key and try again."}
+          </div>
+        </div>
+      )}
+
       {/* Input Area */}
       <div className="border-t border-monarch-dark-border p-4">
         <form
-          onSubmit={handleSubmit}
+          id="chat-form"
+          onSubmit={onSubmit}
           className="max-w-3xl mx-auto relative"
         >
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={onInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask about your finances..."
             rows={1}
+            disabled={isLoading}
             className="
               w-full resize-none bg-monarch-dark-surface
               text-warm-100 placeholder:text-warm-600
               rounded-[var(--radius-input)] px-4 py-3 pr-12
               border border-monarch-dark-border
               focus:outline-none focus:border-monarch-orange/50
+              disabled:opacity-50
               transition-colors text-sm leading-relaxed
             "
           />
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() || isLoading}
             className="
               absolute right-2 bottom-2 p-2
               rounded-lg text-warm-500
@@ -170,12 +173,7 @@ export function ChatWindow({
               transition-colors
             "
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="currentColor"
-            >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
               <path d="M2.5 16.5L16.5 9L2.5 1.5V7.5L11.5 9L2.5 10.5V16.5Z" />
             </svg>
           </button>
@@ -196,22 +194,36 @@ function MessageBubble({ message }: { message: Message }) {
       <div
         className={`
           max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed
-          ${
-            isUser
-              ? "bg-monarch-orange text-white rounded-br-md"
-              : "bg-monarch-dark-surface card-border text-warm-200 rounded-bl-md"
-          }
+          ${isUser
+            ? "bg-monarch-orange text-white rounded-br-md"
+            : "bg-monarch-dark-surface card-border text-warm-200 rounded-bl-md"}
         `}
       >
         {!isUser && (
           <div className="flex items-center gap-2 mb-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-monarch-orange" />
-            <span className="text-xs font-medium text-warm-400">
-              Adviser
-            </span>
+            <span className="text-xs font-medium text-warm-400">Adviser</span>
           </div>
         )}
         <p className="whitespace-pre-wrap">{message.content}</p>
+      </div>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="bg-monarch-dark-surface card-border rounded-2xl rounded-bl-md px-4 py-3">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-monarch-orange" />
+          <span className="text-xs font-medium text-warm-400">Adviser</span>
+        </div>
+        <div className="flex gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-warm-600 animate-bounce [animation-delay:0ms]" />
+          <div className="w-2 h-2 rounded-full bg-warm-600 animate-bounce [animation-delay:150ms]" />
+          <div className="w-2 h-2 rounded-full bg-warm-600 animate-bounce [animation-delay:300ms]" />
+        </div>
       </div>
     </div>
   );
@@ -221,16 +233,7 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (msg: string) =>
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
       <div className="w-12 h-12 rounded-2xl bg-monarch-orange/10 flex items-center justify-center mb-4">
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#FF692D"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF692D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 2L2 7L12 12L22 7L12 2Z" />
           <path d="M2 17L12 22L22 17" />
           <path d="M2 12L12 17L22 12" />
@@ -245,7 +248,6 @@ function EmptyState({ onSuggestionClick }: { onSuggestionClick: (msg: string) =>
         straight answers.
       </p>
 
-      {/* Suggestion chips */}
       <div className="flex flex-wrap gap-2 max-w-md justify-center">
         {[
           "How much did I spend this month?",
