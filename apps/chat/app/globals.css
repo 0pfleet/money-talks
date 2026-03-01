@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/*
+ * Monarch Money-inspired design tokens.
+ *
+ * Typography: Inter (body, ABC Oracle alt) + Source Serif Pro (headings, Copernicus alt)
+ * Palette: warm orange accent, charcoal darks, subtle ring borders
+ * Philosophy: warm and approachable, information-dense but not cluttered
+ */
+
+@theme {
+  /* ── Brand Colors ──────────────────────────────────────────────── */
+  --color-monarch-orange: #FF692D;
+  --color-monarch-orange-hover: #E85A20;
+  --color-monarch-orange-light: #FFF3EE;
+  --color-monarch-dark: #22201D;
+  --color-monarch-dark-surface: #2A2825;
+  --color-monarch-dark-elevated: #333130;
+  --color-monarch-dark-border: rgba(255, 255, 255, 0.08);
+
+  /* ── Neutral Scale (warm grays) ────────────────────────────────── */
+  --color-warm-50: #FAFAF9;
+  --color-warm-100: #F5F5F4;
+  --color-warm-200: #E7E5E4;
+  --color-warm-300: #D6D3D1;
+  --color-warm-400: #A8A29E;
+  --color-warm-500: #78716C;
+  --color-warm-600: #57534E;
+  --color-warm-700: #44403C;
+  --color-warm-800: #292524;
+  --color-warm-900: #1C1917;
+
+  /* ── Semantic Colors ───────────────────────────────────────────── */
+  --color-budget-under: #22C55E;
+  --color-budget-warning: #EAB308;
+  --color-budget-over: #EF4444;
+
+  --color-asset-cash: #22C55E;
+  --color-asset-investments: #3B82F6;
+  --color-asset-real-estate: #8B5CF6;
+  --color-liability-credit: #EF4444;
+  --color-liability-loans: #EAB308;
+
+  /* ── Artifact Types ────────────────────────────────────────────── */
+  --color-artifact-real: #3B82F6;
+  --color-artifact-real-bg: #EFF6FF;
+  --color-artifact-projected: #8B5CF6;
+  --color-artifact-projected-bg: #F5F3FF;
+
+  /* ── Typography ────────────────────────────────────────────────── */
+  --font-heading: "Source Serif 4", "Georgia", serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* ── Spacing & Radii ───────────────────────────────────────────── */
+  --radius-card: 12px;
+  --radius-media: 8px;
+  --radius-pill: 9999px;
+  --radius-input: 10px;
+}
+
+/* ── Base Styles ───────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-monarch-dark);
+  color: var(--color-warm-100);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar Styling ─────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-warm-700);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-warm-600);
+}
+
+/* ── Utility Classes ───────────────────────────────────────────────── */
+
+.card-border {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.card-border-hover:hover {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
