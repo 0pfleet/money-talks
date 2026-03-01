@@ -1,35 +1,35 @@
 # money-talks
 
-> Ask your money questions in plain English. Get answers backed by your real financial data.
+> Monarch Money is the ledger. Money Talks is the adviser.
 
-**money-talks** is an open-source, agentic financial analysis tool that connects to your [Monarch Money](https://www.monarchmoney.com/) account and lets you explore your finances through natural language conversation.
+**money-talks** is an open-source financial adviser powered by your [Monarch Money](https://www.monarchmoney.com/) data. It connects to your account, pulls your transactions into a local data lake, and lets you have a real conversation about your money — backed by charts, SQL, and actual numbers.
 
-Instead of clicking through dashboards, you ask questions like:
-- *"What are my top 5 spending categories this month?"*
-- *"How much did I spend on restaurants in Q4 vs Q3?"*
-- *"Am I on track with my grocery budget?"*
-- *"Show me my recurring subscriptions sorted by cost"*
-- *"What's my savings rate trend over the past 6 months?"*
+It doesn't just answer questions. It notices patterns, flags concerns, and tells you what to do about them:
 
-The agent writes and executes real SQL/Python against your data, shows you the results, and remembers context across your conversation.
+- *"How much did I spend on food?"* → Answers the question, shows a chart, AND flags that you're $147 over your food budget — driven by DoorDash orders on weeknights.
+- *"Am I on track with my savings?"* → Shows your savings rate trend, compares to your 25% target, and suggests which subscriptions to cut.
+- *"What's going on with my credit card?"* → Breaks down the balance by category, identifies recurring charges you forgot about, and shows the payoff timeline.
+
+The agent writes and executes real Python/SQL against your data, generates charts with matplotlib and plotly, and remembers insights across sessions.
 
 ---
 
 ## How It Works
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌───────────────┐
-│  Monarch     │────▶│  Local Data   │────▶│  Agentic Chat │
-│  Money       │     │  Lake         │     │  (LLM + Tools)│
-│  (API/CSV)   │     │  (Parquet)    │     │               │
-└─────────────┘     └──────────────┘     └───────────────┘
-      sync               DuckDB              ask anything
-      import              SQL                  get answers
+┌─────────────┐     ┌──────────────┐     ┌──────────────────────────────┐
+│  Monarch     │────▶│  Local Data   │────▶│  Financial Adviser (Claude)  │
+│  Money       │     │  Lake         │     │  ┌──────────────────────┐   │
+│  (API/CSV)   │     │  (Parquet)    │     │  │ Jupyter Kernel       │   │
+└─────────────┘     └──────────────┘     │  │ pandas, matplotlib,  │   │
+      sync               DuckDB          │  │ plotly, DuckDB       │   │
+      import              SQL            │  └──────────────────────┘   │
+                                          └──────────────────────────────┘
 ```
 
 1. **Ingest** — Pull your data from Monarch Money (via API or CSV export) into a local parquet data lake
-2. **Query** — DuckDB provides instant SQL over your parquet files, no database server needed
-3. **Chat** — An LLM agent with notebook/SQL tools answers your questions by writing and executing queries against your data
+2. **Query** — DuckDB provides instant SQL over your parquet files, no server needed
+3. **Advise** — Claude executes real code in a Jupyter kernel, generates charts, and gives you actionable financial advice
 
 ---
 
@@ -38,8 +38,9 @@ The agent writes and executes real SQL/Python against your data, shows you the r
 ### Prerequisites
 
 - Python 3.11+
+- Docker (for the Jupyter kernel)
 - A [Monarch Money](https://www.monarchmoney.com/) account
-- An Anthropic API key (for the chat agent)
+- An Anthropic API key (for Claude)
 
 ### Install
 
@@ -75,8 +76,12 @@ money-talks query "SELECT category, SUM(amount) as total FROM transactions GROUP
 ### Chat With Your Data
 
 ```bash
-# Coming soon — agentic chat interface
-money-talks chat
+# Start the Jupyter kernel (runs in Docker)
+cd apps/chat && npm run kernel:up
+
+# Start the chat app
+npm run dev
+# Open http://localhost:3000
 ```
 
 ---
@@ -98,13 +103,18 @@ money-talks/
 │   │   └── queries.py      #   DuckDB connection with auto-registered views
 │   └── cli.py              # CLI entry point (sync, import, query)
 │
-├── apps/chat/              # Agentic chat application (Next.js)
+├── apps/chat/              # Financial adviser chat app (Next.js)
 │   ├── app/                #   Next.js App Router
-│   │   └── api/chat/       #   Chat API endpoint (LLM + tool execution)
+│   │   └── api/chat/       #   Chat endpoint (Claude + Vercel AI SDK)
 │   ├── lib/                #   Core logic
-│   │   ├── tools/          #   Agent tools (notebook, memory)
+│   │   ├── tools/          #   Agent tools (execute, memory)
+│   │   │   └── notebook/   #     Jupyter kernel client + output parsing
 │   │   ├── compaction/     #   Context window management
 │   │   └── server/         #   Session persistence (SQLite)
+│   ├── notebook/           #   Jupyter Kernel Gateway (Docker)
+│   │   ├── Dockerfile      #     Python 3.12 + analysis stack
+│   │   ├── startup.py      #     Pre-loaded libs + DuckDB connection
+│   │   └── docker-compose.yml
 │   └── components/         #   React UI components
 │
 ├── docs/                   # Documentation
@@ -118,10 +128,11 @@ money-talks/
 ## Architecture
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design document covering:
-- Data flow from Monarch Money → local lake → agent
-- Schema validation strategy
-- Agentic chat design (tools, context management, memory)
-- Why DuckDB + parquet over a traditional database
+- The ledger vs adviser separation (Monarch vs Money Talks)
+- Jupyter Kernel Gateway integration and figure capture
+- Single `execute` tool design (and why not multi-command)
+- Data flow: Monarch → schema validation → parquet → DuckDB → agent → advice
+- Context window compaction for long analysis sessions
 
 ---
 
@@ -143,13 +154,16 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design document coverin
 - [x] Local parquet data lake with atomic writes
 - [x] DuckDB SQL queries over local data
 - [x] CLI interface (sync, import, query)
-- [ ] Agentic chat interface (Next.js + Claude)
-- [ ] Notebook tool (execute SQL/Python in conversation)
-- [ ] Memory system (remember insights across sessions)
-- [ ] Artifact publishing (save charts and tables)
-- [ ] Budget tracking and alerts
+- [x] Jupyter Kernel Gateway (Docker) with pre-loaded analysis stack
+- [x] Execute tool with figure capture and output truncation
+- [x] Financial adviser system prompt and agent loop
+- [x] Chat API endpoint (Claude + Vercel AI SDK)
+- [ ] Chat UI (message stream, inline charts, session sidebar)
+- [ ] Memory system (Qdrant + SQLite, cross-session persistence)
+- [ ] Context window compaction
+- [ ] Budget tracking and proactive alerts
 - [ ] Investment portfolio analysis
-- [ ] Multi-user support
+- [ ] Multi-source support (Plaid, CSV from any bank)
 
 ---
 
