@@ -1,0 +1,14 @@
+services:
+  kernel:
+    build: .
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount the user's local data lake (read-only)
+      - ${LAKE_DIR:-~/.money-talks/lake}:/home/adviser/lake:ro
+    environment:
+      - LAKE_DIR=/home/adviser/lake
+      - KG_AUTH_TOKEN=${JUPYTER_TOKEN:-money-talks-dev}
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
